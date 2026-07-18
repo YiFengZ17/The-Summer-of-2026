@@ -30,19 +30,25 @@ def softmax_loss_naive(W, X, y, reg):
     num_classes = W.shape[1]
     num_train = X.shape[0]
     for i in range(num_train):
+        #计算每一个测试向量的得分向量
         scores = X[i].dot(W)
 
-        # compute the probabilities in numerically stable way
+        # compute the probabilities in numerically stable way（数值稳定技巧）
         scores -= np.max(scores)
         p = np.exp(scores)
         p /= p.sum()  # normalize
         logp = np.log(p)
-
+        #考虑正确类标签的概率
         loss -= logp[y[i]]  # negative log probability is the loss
-
+        # 梯度的解析公式：dW = sum(p[y[i]] - 1 outerpro X[i])/N + 2λW
+        p[y[i]] -= 1 # L对得分向量的导数
+        dW += np.outer(X[i],p)# 累加外积 
 
     # normalized hinge loss plus regularization
-    loss = loss / num_train + reg * np.sum(W * W)
+    loss = (loss / num_train) + reg * np.sum(W * W)
+    # 补全dW
+    dW /= num_train
+    dW += 2 * reg * W
 
     #############################################################################
     # TODO:                                                                     #
@@ -73,7 +79,14 @@ def softmax_loss_vectorized(W, X, y, reg):
     # Implement a vectorized version of the softmax loss, storing the           #
     # result in loss.                                                           #
     #############################################################################
-
+    N = X.shape[0]
+    S_score1 = np.dot(X,W)
+    S_score2 = S_score1 - np.max(S_score1,axis = 1,keepdims = True)
+    S_exp = np.exp(S_score2)
+    S_exp_norm = S_exp / np.sum(S_exp,axis = 1,keepdims = True)
+    S_log = -np.log(S_exp_norm)
+    S_idx = S_log[np.arange(N),y]
+    loss = np.sum(S_idx) / N + reg * np.sum(W * W) 
 
     #############################################################################
     # TODO:                                                                     #
@@ -84,6 +97,7 @@ def softmax_loss_vectorized(W, X, y, reg):
     # to reuse some of the intermediate values that you used to compute the     #
     # loss.                                                                     #
     #############################################################################
-
+    S_exp_norm[np.arange(N),y] -= 1
+    dW = np.matmul(X.T,S_exp_norm) / N + 2 * reg * W
 
     return loss, dW
