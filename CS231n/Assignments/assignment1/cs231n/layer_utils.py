@@ -1,6 +1,6 @@
 from .layers import *
 
-
+# single neural net mixing classifier and activate function
 def affine_relu_forward(x, w, b):
     """
     Convenience layer that perorms an affine transform followed by a ReLU
