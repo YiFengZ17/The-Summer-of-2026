@@ -126,7 +126,7 @@ class Solver(object):
         self.optim_config = kwargs.pop("optim_config", {})
         self.lr_decay = kwargs.pop("lr_decay", 1.0)
         self.batch_size = kwargs.pop("batch_size", 100)
-        self.num_epochs = kwargs.pop("num_epochs", 5)
+        self.num_epochs = kwargs.pop("num_epochs", 10)
         self.num_train_samples = kwargs.pop("num_train_samples", 1000)
         self.num_val_samples = kwargs.pop("num_val_samples", None)
 
