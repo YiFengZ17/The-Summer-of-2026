@@ -199,6 +199,7 @@ class FullyConnectedNet(object):
             if self.normalization == 'layernorm':
                 dx,grads[f'gamma{i+1}'],grads[f'beta{i+1}'] = layernorm_backward(dx,ln_cache)
             dx,grads[f'W{i+1}'],grads[f'b{i+1}'] = affine_backward(dx,fc_cache)
+
         for l in range(1,self.num_layers+1):
             loss += 0.5 * self.reg * np.sum(self.params[f'W{l}'] ** 2)
             grads[f'W{l}'] += self.reg * self.params[f'W{l}']
