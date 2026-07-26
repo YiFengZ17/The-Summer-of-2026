@@ -85,7 +85,7 @@
    "outputs": [],
    "source": [
     "from IPython.display import Image as ColabImage\n",
-    "ColabImage('CLIP.png')"
+    "ColabImage(f'/content/drive/My Drive/{FOLDERNAME}/CLIP.png')"
    ]
   },
   {
@@ -530,7 +530,7 @@
    "outputs": [],
    "source": [
     "from IPython.display import Image as ColabImage\n",
-    "ColabImage('dino.gif')"
+    "ColabImage(f'/content/drive/My Drive/{FOLDERNAME}/dino.gif')"
    ]
   },
   {
@@ -934,7 +934,7 @@
     "\n",
     "\n",
     "# It might take a while to process in google drive but you can just download it and watch on your computer\n",
-    "write_video_from_array(final_viz, 'dino_res.mp4')"
+    "write_video_from_array(final_viz, f\"/content/drive/My Drive/{FOLDERNAME}/dino_res.mp4\")"
    ]
   },
   {
