@@ -28,7 +28,6 @@ def train(model, data_loader, train_optimizer, epoch, epochs, batch_size=32, tem
         x_i, x_j, target = data_pair
         x_i, x_j = x_i.to(device), x_j.to(device)
         
-        out_left, out_right, loss = None, None, None
         ##############################################################################
         # TODO: Start of your code.                                                  #
         #                                                                            #
@@ -36,8 +35,10 @@ def train(model, data_loader, train_optimizer, epoch, epochs, batch_size=32, tem
         # Run x_i and x_j through the model to get out_left, out_right.              #
         # Then compute the loss using simclr_loss_vectorized.                        #
         ##############################################################################
-        
-        
+        # model(x) returns (feature, out); we keep only the projection `out` (z).
+        _, out_left = model(x_i)
+        _, out_right = model(x_j)
+        loss = simclr_loss_vectorized(out_left, out_right, temperature, device=device)
         ##############################################################################
         #                               END OF YOUR CODE                             #
         ##############################################################################
