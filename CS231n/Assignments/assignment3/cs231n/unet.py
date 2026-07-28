@@ -170,7 +170,6 @@ class Unet(nn.Module):
         # Downsampling blocks
         ####################################################################
         for ind, (dim_in, dim_out) in enumerate(in_out):
-            down_block = None
             ##################################################################
             # TODO: Create one UNet downsampling layer `down_block` as a ModuleList.
             # It should be a ModuleList of 3 blocks [ResnetBlock, ResnetBlock, Downsample].
@@ -180,7 +179,11 @@ class Unet(nn.Module):
             # Make sure to exactly follow this structure of ModuleList in order to
             # load a pretrained checkpoint.
             ##################################################################
-
+            down_block = nn.ModuleList([
+                ResnetBlock(dim_in, dim_in, context_dim=context_dim),
+                ResnetBlock(dim_in, dim_in, context_dim=context_dim),
+                Downsample(dim_in, dim_out),
+            ])
             ##################################################################
             self.downs.append(down_block)
 
@@ -196,7 +199,6 @@ class Unet(nn.Module):
         # self.ups will also be a ModuleList of ModuleLists.
         # Each BlockList will contain 3 blocks [Upsample, ResnetBlock, ResnetBlock].
         for ind, (dim_in, dim_out) in enumerate(in_out_ups):
-            up_block = None
             ##################################################################
             # TODO: Create one UNet upsampling layer as a ModuleList.
             # It should be a ModuleList of 3 blocks [Upsample, ResnetBlock, ResnetBlock].
@@ -204,6 +206,11 @@ class Unet(nn.Module):
             # Don't forget to account for the skip connections by having 2 x dim_out
             # channels at the input of both ResnetBlocks.
             ##################################################################
+            up_block = nn.ModuleList([
+                Upsample(dim_in, dim_out),
+                ResnetBlock(dim_out * 2, dim_out, context_dim=context_dim),
+                ResnetBlock(dim_out * 2, dim_out, context_dim=context_dim),
+            ])
 
             self.ups.append(up_block)
             ##################################################################
@@ -226,7 +233,14 @@ class Unet(nn.Module):
         # You will have to call self.forward two times.
         # For unconditional sampling, pass None in`text_emb`.
         ##################################################################
-
+        # Conditional prediction (with text_emb)
+        pred_cond = self.forward(x, time, model_kwargs)
+        # Unconditional prediction (text_emb -> None, forward uses zero embedding)
+        uncond_kwargs = copy.deepcopy(model_kwargs)
+        uncond_kwargs["text_emb"] = None
+        pred_uncond = self.forward(x, time, uncond_kwargs)
+        # Classifier-free guidance linear combination
+        x = (cfg_scale + 1) * pred_cond - cfg_scale * pred_uncond
         ##################################################################
 
         return x
@@ -281,7 +295,24 @@ class Unet(nn.Module):
         #      skip connection from the downsampling path.
         #    - Make sure to pass the context to each ResNet block.
         ##################################################################
+        # Downsampling: save the output after each ResnetBlock as a skip connection.
+        skip = []
+        for down in self.downs:
+            x = down[0](x, context=context)   # ResnetBlock 1 (keeps dim_in channels)
+            skip.append(x)
+            x = down[1](x, context=context)   # ResnetBlock 2 (keeps dim_in channels)
+            skip.append(x)
+            x = down[2](x)                     # Downsample (dim_in -> dim_out, halves spatial)
 
+        # Middle blocks
+        x = self.mid_block1(x, context=context)
+        x = self.mid_block2(x, context=context)
+
+        # Upsampling: pop skips LIFO and concat before each ResnetBlock.
+        for up in self.ups:
+            x = up[0](x)                                                 # Upsample (no context)
+            x = up[1](torch.cat([x, skip.pop()], dim=1), context=context)  # ResnetBlock 1
+            x = up[2](torch.cat([x, skip.pop()], dim=1), context=context)  # ResnetBlock 2
         ##################################################################
 
         # Final block

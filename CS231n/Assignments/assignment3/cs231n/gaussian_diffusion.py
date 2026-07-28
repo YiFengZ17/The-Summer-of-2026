@@ -96,13 +96,14 @@ class GaussianDiffusion(nn.Module):
         Returns:
             x_start: (b, *) tensor. Starting image.
         """
-        x_start = None
         ####################################################################
         # TODO:
         # Transform x_t and noise to get x_start according to Eq.(4) and Eq.(14).
         # Look at the coeffs in `__init__` method and use the `extract` function.
         ####################################################################
-
+        x_start = (
+            x_t - extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * noise
+        ) / extract(self.sqrt_alphas_cumprod, t, x_t.shape)
         ####################################################################
         return x_start
 
@@ -115,13 +116,14 @@ class GaussianDiffusion(nn.Module):
         Returns:
             pred_noise: (b, *) tensor. Predicted noise.
         """
-        pred_noise = None
         ####################################################################
         # TODO:
         # Transform x_t and noise to get x_start according to Eq.(4) and Eq.(14).
         # Look at the coeffs in `__init__` method and use the `extract` function.
         ####################################################################
-
+        pred_noise = (
+            x_t - extract(self.sqrt_alphas_cumprod, t, x_t.shape) * x_start
+        ) / extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape)
         ####################################################################
         return pred_noise
 
@@ -157,7 +159,6 @@ class GaussianDiffusion(nn.Module):
             x_tm1: (b, *) tensor. Sampled image.
         """
         t = torch.full((x_t.shape[0],), t, device=x_t.device, dtype=torch.long)  # (b,)
-        x_tm1 = None  # sample x_{t-1} from p(x_{t-1} | x_t)
 
         ##################################################################
         # TODO: Implement the sampling step p(x_{t-1} | x_t) according to Eq. (6):
@@ -172,7 +173,15 @@ class GaussianDiffusion(nn.Module):
         #   4. Get the mean and std for q(x_{t-1} | x_t, x_0) using self.q_posterior,
         #      and sample x_{t-1}.
         ##################################################################
-        
+        model_out = self.model(x_t, t, model_kwargs)
+        if self.objective == "pred_x_start":
+            x_start = model_out
+        else:
+            x_start = self.predict_start_from_noise(x_t, t, model_out)
+        x_start = x_start.clamp(-1, 1)
+        posterior_mean, posterior_std = self.q_posterior(x_start, x_t, t)
+        noise = torch.randn_like(x_t)
+        x_tm1 = posterior_mean + posterior_std * noise  # at t=0, posterior_std=0 -> pure mean
         ##################################################################
 
         return x_tm1
@@ -207,7 +216,6 @@ class GaussianDiffusion(nn.Module):
             x_t: (b, *) tensor. Noisy image.
         """
 
-        x_t = None
         ####################################################################
         # TODO:
         # Implement sampling from q(x_t | x_0) according to Eq. (4) of the paper.
@@ -217,7 +225,10 @@ class GaussianDiffusion(nn.Module):
         # can be done as: x_t = mu + sigma * noise where noise is sampled from N(0, 1).
         # Approximately 3 lines of code.
         ####################################################################
-
+        x_t = (
+            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
+            + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+        )
         ####################################################################
         return x_t
 
@@ -228,8 +239,6 @@ class GaussianDiffusion(nn.Module):
         noise = torch.randn_like(x_start)  # (b, *)
         target = noise if self.objective == "pred_noise" else x_start  # (b, *)
         loss_weight = extract(self.loss_weight, t, target.shape)  # (b, *)
-        loss = None
-
         ####################################################################
         # TODO:
         # Implement the loss function according to Eq. (14) of the paper.
@@ -238,7 +247,9 @@ class GaussianDiffusion(nn.Module):
         # Finally, compute the weighted MSE loss.
         # Approximately 3-4 lines of code.
         ####################################################################
-
+        x_t = self.q_sample(x_start, t, noise)               # noisy image at sampled t
+        pred = self.model(x_t, t, model_kwargs)              # network prediction
+        loss = (loss_weight * (pred - target) ** 2).mean()   # weighted MSE (Eq. 14)
         ####################################################################
 
         return loss
