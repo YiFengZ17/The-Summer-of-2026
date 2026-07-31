@@ -1,0 +1,34 @@
+# CIFAR-10 CNN experiment (M2): conv + BN + dropout + augmentation.
+# Run: python -m cifar.train --config configs/cnn.yaml
+
+# --- data ---
+dataset: cifar-10
+cifar_dir: null              # null => data.py uses the default cached location
+image_size: 32
+channels: 3
+num_classes: 10
+mean: [0.4914, 0.4822, 0.4465]
+std:  [0.2470, 0.2435, 0.2616]
+
+# --- model ---
+model: cnn
+base_channels: 32           # conv stage widths: 32 / 64 / 128
+dropout: 0.5
+
+# --- data augmentation (train only) ---
+augment: true               # random crop (pad 4) + horizontal flip
+
+# --- loss / optimizer (hand-written) ---
+loss: softmax-ce
+optimizer: adam
+learning_rate: 1.0e-3
+weight_decay: 5.0e-4        # L2 reg (applied by our optimizer)
+
+# --- training ---
+batch_size: 128
+epochs: 10
+seed: 0
+
+# --- io ---
+checkpoint_dir: checkpoints/
+log_dir: logs/

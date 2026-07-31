@@ -555,6 +555,7 @@ def conv_forward_naive(x, w, b, conv_param):
 
     out = np.zeros((N,F,H_out,W_out))
 
+    # focus on every cell in new layer
     for n in range(N):
         for f in range(F):
             for i in range(H_out):
@@ -563,7 +564,8 @@ def conv_forward_naive(x, w, b, conv_param):
                     h_end = h_start + HH
                     w_start = j * stride
                     w_end = w_start + WW
-
+                    #because of the padding step, we don't worry about 
+                    #the value of h_end overflows the value of rows
                     x_field = x_pad[n, :, h_start:h_end, w_start:w_end]
                     w_f = w[f]
 

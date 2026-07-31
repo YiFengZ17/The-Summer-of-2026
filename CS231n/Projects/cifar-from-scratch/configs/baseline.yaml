@@ -1,0 +1,31 @@
+# CIFAR-10 from-scratch baseline config — all hyperparameters live here.
+
+# --- data ---
+dataset: cifar-10
+# Path to cached cifar-10-batches-py. null => data.py uses the default
+# (CS231n/Assignments/assignment1/cs231n/datasets/).
+cifar_dir: null
+image_size: 32
+channels: 3
+num_classes: 10
+mean: [0.4914, 0.4822, 0.4465]   # CIFAR-10 per-channel mean
+std:  [0.2470, 0.2435, 0.2616]   # CIFAR-10 per-channel std
+
+# --- model (M1 = two-layer, M2 = cnn) ---
+model: two-layer         # two-layer | cnn
+hidden_dim: 100
+
+# --- loss / optimizer (★ hand-written in M1) ---
+loss: softmax-ce         # SoftmaxCrossEntropy as autograd.Function
+optimizer: adam          # sgd | momentum | adam (hand-written classes)
+learning_rate: 1.0e-3
+weight_decay: 0.0
+
+# --- training ---
+batch_size: 128
+epochs: 20
+seed: 0
+
+# --- io ---
+checkpoint_dir: checkpoints/
+log_dir: logs/

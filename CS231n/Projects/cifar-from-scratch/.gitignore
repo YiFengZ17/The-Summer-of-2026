@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# ML run artifacts (keep code + config, not outputs)
+checkpoints/
+logs/
+wandb/
+
+# notebooks
+.ipynb_checkpoints/
+
+# misc
+.DS_Store
