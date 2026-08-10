@@ -60,9 +60,23 @@ class CausalAttention(nn.Module):
     def forward(
         self, x: Float[Tensor, "batch seq_len d_model"]
     ) -> Float[Tensor, "batch seq_len d_model"]:
-
-        # TODO, complete 
-        return torch.empty(1)
+        B, T, D = x.shape
+        n_heads = x.shape[-1] // self.d_attention
+        q = self.W_q(x)
+        k = self.W_k(x)
+        v = self.W_v(x)
+        q = q.reshape(B,T,n_heads,self.d_attention).transpose(1,2)
+        k = k.reshape(B,T,n_heads,self.d_attention).transpose(1,2)
+        v = v.reshape(B,T,n_heads,self.d_attention).transpose(1,2)
+        scores = q @ k.transpose(-2,-1) / math.sqrt(self.d_attention)
+        mask = self.causal_mask[:,:,:T,:T]
+        scores = scores.masked_fill(mask == 0,float("-inf"))
+        weights = softmax(scores,dim=-1)
+        head_output = weights @ v
+        head_output = head_output.transpose(1,2)
+        head_output = head_output.reshape(B,T,D)
+        output = self.W_o(head_output)
+        return output
 
 
 
@@ -88,8 +102,10 @@ class MLP(nn.Module):
         self, x: Float[Tensor, "batch seq_len d_model"]
     ) -> Float[Tensor, "batch seq_len d_model"]:
 
-        # TODO, complete
-        return torch.empty(1)
+        hidden = self.fc1(x)
+        hidden = self.gelu(hidden)
+        output = self.fc2(hidden)
+        return output
         
 
 class DecoderBlock(nn.Module):
@@ -105,10 +121,11 @@ class DecoderBlock(nn.Module):
     def forward(
         self, x: Float[Tensor, "batch seq_len d_model"]
     ) -> Float[Tensor, "batch seq_len d_model"]:
-
-        # TODO complete
-        return torch.empty(1)
-
+        x_ln = self.pre_layer_norm(x)
+        x1 = self.attention(x_ln) + x
+        x1_ln = self.post_layer_norm(x1)
+        output = self.mlp(x1_ln) + x1
+        return output
 
 class Transformer(nn.Module):
 
@@ -147,28 +164,56 @@ class Transformer(nn.Module):
     def forward(
         self, x: Int[Tensor, "batch_size seq_len"]
     ) -> Float[Tensor, "batch seq_len vocab_size"]:
+        B,T = x.shape
+        assert T <= self.config.context_length
 
-        # TODO, complete
-        return torch.empty(1)
+        x_token_embed = self.embeddings(x)
 
-    @torch.no_grad()
+        positions = torch.arange(T,device=x.device)
+        x_position_embed = self.position_embeddings(positions)
+
+        hidden = x_position_embed+x_token_embed #must be 'hidden', aim to iterate in blocks
+
+        for block in self.backbone:
+            hidden = block(hidden) 
+        
+        x_final_ln = self.final_layer_norm(hidden)
+        logits = self.lm_head(x_final_ln)
+        return logits
+
+    
+    @torch.no_grad() #no need for grad below
     def generate(
         self,
         x: Int[Tensor, "batch_size seq_len"],
         num_new_tokens: int,
     ) -> Int[Tensor, "batch_size seq_len+num_new_tokens"]:
+        for _ in range(num_new_tokens):
+            x_context = x[:, -self.config.context_length: ]
 
-        # TODO, complete
-        return torch.empty(1)
+            logits = self(x_context)
+            # obtain the vocablary table of the last word
+            next_token_logits = logits[:,-1,:]
+            # get word of max possible on every row, each responding to a sequence 
+            next_token = torch.argmax(next_token_logits, dim=-1,keepdim=True)
+            #concatenation on the sequence_length dimension
+            x = torch.cat([x,next_token],dim=1)
+        return x
 
 
     def get_loss_on_batch(
         self,
         input_ids: Int[Tensor, "batch_size seq_len"], 
     ) -> Float[Tensor, ""]:
+        input_x = input_ids[:,:-1]
+        labels = input_ids[:, 1:]
+        logits = self(input_x)
 
-        # TODO, complete
-        return torch.empty(1)
+        logits = logits.reshape(-1,self.config.vocab_size)
+        labels = labels.reshape(-1)
+        loss = F.cross_entropy(logits,labels)
+        return loss
+
 
 
     @classmethod

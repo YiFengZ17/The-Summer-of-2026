@@ -101,5 +101,4 @@ def test_loss_on_batch(test_model):
     output = test_model.get_loss_on_batch(
         input_ids=loss_on_batch_input
     ).detach().cpu().numpy()
-    
     np.testing.assert_allclose(output, expected_output, atol=1e-5)
