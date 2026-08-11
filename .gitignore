@@ -9,6 +9,10 @@ __pycache__/
 *.hdf5
 **/datasets/
 
+# Generated training outputs and model weights
+**/results/
+*.weights
+
 # Jupyter
 .ipynb_checkpoints/
 

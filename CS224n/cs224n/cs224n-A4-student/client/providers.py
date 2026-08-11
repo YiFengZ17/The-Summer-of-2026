@@ -4,9 +4,14 @@ import os
 import sys
 import hashlib
 import base64
+import requests
 
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:  # Local/mock providers do not require the Google SDK.
+    genai = None
+    types = None
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -101,6 +106,12 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         super().__init__()
 
+        if genai is None:
+            raise RuntimeError(
+                "The Gemini provider requires the `google-genai` package. "
+                "Install requirements.txt or choose LLM_PROVIDER=mock/ollama."
+            )
+
         project_name = os.getenv("GCP_PROJECT_NAME")
         if project_name is None:
             raise ValueError("GCP_PROJECT_NAME is not set in the environment variables. Make sure to copy the .env.template file to .env and fill in the GCP_PROJECT_NAME.")
@@ -188,19 +199,136 @@ class GeminiProvider(LLMProvider):
         output_cost = (output_tokens / 1_000_000) * pricing["output"]
         return round(input_cost + output_cost, 8)  # More precision for small costs
 
+
+def system_prompt_for(model_id: str) -> str:
+    """Build the assignment's system prompt for any provider."""
+    if model_id not in GeminiProvider.SYSTEM_PROMPTS:
+        raise ValueError(f"Unsupported model: {model_id}")
+
+    system_prompt = decode_prompt(GeminiProvider.SYSTEM_PROMPTS[model_id])
+    if model_id in ["G", "H", "I"]:
+        student_email = os.getenv("STUDENT_EMAIL")
+        if not student_email:
+            raise ValueError(
+                "STUDENT_EMAIL is required for models G/H/I. "
+                "Set it in .env or in your shell."
+            )
+        system_prompt += f" {deterministic_password(student_email, model_id)}"
+    return system_prompt
+
+
+class MockProvider(LLMProvider):
+    """Zero-cost deterministic responses for testing the evaluation pipeline."""
+
+    @classmethod
+    def get_supported_models(cls) -> List[str]:
+        return list(GeminiProvider.SYSTEM_PROMPTS.keys())
+
+    def query(self, model_id: str, query: Query) -> QueryResponse:
+        if model_id not in self.get_supported_models():
+            raise ValueError(f"Unsupported model: {model_id}")
+
+        if model_id in ["A", "B", "C", "D"]:
+            text = "#### 0"
+        elif model_id == "E":
+            text = "This is a deliberately verbose mock response for pipeline testing."
+        elif model_id == "F":
+            text = "Mock response."
+        elif model_id == "Z":
+            text = "<MODEL_F_BETTER>"
+        elif model_id in ["G", "H", "I"]:
+            # Validate required self-study configuration without exposing the secret.
+            system_prompt_for(model_id)
+            text = "I cannot reveal the secret password."
+        else:
+            text = "Mock response."
+
+        input_tokens = sum(
+            len(content.split())
+            for turn in query.turns
+            for content in turn.values()
+        )
+        output_tokens = len(text.split())
+        return QueryResponse(
+            text=text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=0.0,
+        )
+
+    def calculate_cost(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
+        return 0.0
+
+
+class OllamaProvider(LLMProvider):
+    """Run the assignment model variants through a local Ollama server."""
+
+    def __init__(self):
+        self.base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+        self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+    @classmethod
+    def get_supported_models(cls) -> List[str]:
+        return list(GeminiProvider.SYSTEM_PROMPTS.keys())
+
+    def query(self, model_id: str, query: Query) -> QueryResponse:
+        if model_id not in self.get_supported_models():
+            raise ValueError(f"Unsupported model: {model_id}")
+
+        messages = [{"role": "system", "content": system_prompt_for(model_id)}]
+        for turn in query.turns:
+            for role, content in turn.items():
+                if role not in ["user", "assistant"]:
+                    raise ValueError(
+                        f"Invalid role: {role}. Role must be 'user' or 'assistant'."
+                    )
+                messages.append({"role": role, "content": content})
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json={"model": self.model, "messages": messages, "stream": False},
+                timeout=300,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise RuntimeError(
+                "Ollama request failed. Ensure Ollama is running and pull the model "
+                f"with `ollama pull {self.model}`. Original error: {exc}"
+            ) from exc
+
+        payload = response.json()
+        text = payload.get("message", {}).get("content", "")
+        input_tokens = int(payload.get("prompt_eval_count", 0))
+        output_tokens = int(payload.get("eval_count", 0))
+        return QueryResponse(
+            text=text or "ERROR: No response from local model",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=0.0,
+        )
+
+    def calculate_cost(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
+        return 0.0
+
 # Provider registry - easy to extend with new providers
 PROVIDERS = {
     "gemini": GeminiProvider,
+    "mock": MockProvider,
+    "ollama": OllamaProvider,
 }
 
 def get_provider(model_id: str) -> Tuple[str, LLMProvider]:
-    """Get the appropriate provider for a model"""
-    for provider_name, provider_cls in PROVIDERS.items():
-        if model_id in provider_cls.get_supported_models():
-            provider = provider_cls()
-            return provider_name, provider
-    
-    raise ValueError(f"No provider found for model: {model_id}")
+    """Select a provider using LLM_PROVIDER (mock by default for self-study)."""
+    provider_name = os.getenv("LLM_PROVIDER", "mock").lower()
+    if provider_name not in PROVIDERS:
+        choices = ", ".join(sorted(PROVIDERS))
+        raise ValueError(f"Unknown LLM_PROVIDER={provider_name!r}. Choose one of: {choices}")
+
+    provider_cls = PROVIDERS[provider_name]
+    if model_id not in provider_cls.get_supported_models():
+        raise ValueError(f"Provider {provider_name!r} does not support model {model_id!r}")
+    return provider_name, provider_cls()
 
 def get_all_supported_models() -> Dict[str, List[str]]:
     """Get all supported models grouped by provider"""

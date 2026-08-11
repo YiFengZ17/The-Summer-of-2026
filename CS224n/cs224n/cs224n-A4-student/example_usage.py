@@ -12,16 +12,15 @@ load_dotenv()
 
 # Example usage for students
 def main():
+    provider = os.getenv("LLM_PROVIDER", "mock").lower()
     project_name = os.getenv("GCP_PROJECT_NAME")
     student_email = os.getenv("STUDENT_EMAIL")
 
-    if not project_name or not student_email:
-        print("Error: required environment variables not set!")
-        print("Please:")
-        print("1. Copy .env.template to .env")
-        print("2. Edit .env to include GCP_PROJECT_NAME and STUDENT_EMAIL")
-        print("3. Re-run this script")
+    if provider == "gemini" and not project_name:
+        print("Error: GCP_PROJECT_NAME is required when LLM_PROVIDER=gemini")
         return
+
+    print(f"Provider: {provider}")
     
     # Create a query with conversation turns
     query = Query(turns=[
