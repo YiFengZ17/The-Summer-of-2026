@@ -11,6 +11,7 @@
 | CS231n | Assignment 1–3：分类器、全连接网络、归一化、卷积网络、图像描述、Transformer、扩散模型等 | [Assignments](CS231n/Assignments/) | 已完成 |
 | CS231n Final Project | 从零搭建 CIFAR-10 训练工程，手写损失函数、SGD/Momentum/Adam 与训练循环 | [项目 README](CS231n/Projects/cifar-from-scratch/README.md) · [项目报告](CS231n/Reports/基于cifar10数据集：从零搭建图像分类器.md) | 已完成 |
 | CS224n | Assignment 1–4：词向量、依存句法分析、Transformer、LLM 评测流程 | [Assignments](CS224n/cs224n/) | 核心代码已完成；A4 仅用 mock 数据验证流程 |
+| CS224n Final Project | GPT-2 LoRA Project | [独立项目仓库](https://github.com/YiFengZ17/GPT2-LoRA-project) | 已完成并独立维护 |
 | LeetCode | 150 道练习，覆盖 16 类常见算法与数据结构 | [分类题单](Leetcode_sheet.md) | 已整理 |
 
 ## CS231n：计算机视觉
@@ -94,6 +95,9 @@ SmallCNN 在第 10 个 epoch 的训练准确率继续上升，但验证损失从
 - 实现 GSM8K、LLM-as-a-Judge 与红队测试 (red teaming) 的评测流程。
 - 当前结果来自 mock response，证明管线能够运行，但不能作为真实模型能力结论。
 
+## CS224n Final Project：GPT-2 LoRA
+
+该项目已拆分为独立仓库维护：**[GPT2-LoRA-project](https://github.com/YiFengZ17/GPT2-LoRA-project)**。
 
 ## 仓库结构
 
@@ -109,12 +113,6 @@ SmallCNN 在第 10 个 epoch 的训练准确率继续上升，但验证损失从
 │   └── Notes/                # 课程笔记
 └── README.md
 ```
-
-## 当前不足与后续工作
-
-- 补完 CS231n 自监督学习实验，并记录可复现的配置、指标与失败分析。
-- 使用真实模型输出重新运行 CS224n A4；目前的 mock 结果只能验证评测管线。
-- 补充统一的根目录环境说明与运行入口，减少不同课程环境之间的依赖冲突。
 
 ## 时间范围
 
