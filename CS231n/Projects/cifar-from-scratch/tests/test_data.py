@@ -1,5 +1,6 @@
 """Smoke tests for the data module: shapes, dtypes, normalization sanity."""
 
+import numpy as np
 import torch
 
 from cifar.data import get_dataloaders, load_cifar10
@@ -19,7 +20,8 @@ def test_load_cifar10_shapes():
     assert y_train.shape == (50000,)
     assert X_test.shape == (10000, 3072)
     assert y_test.shape == (10000,)
-    assert X_train.dtype == X_test.dtype == y_train.dtype == y_test.dtype
+    assert X_train.dtype == X_test.dtype == np.uint8
+    assert y_train.dtype == y_test.dtype == np.int64
 
 
 def test_dataloader_batch():
@@ -28,6 +30,7 @@ def test_dataloader_batch():
     assert tuple(x.shape) == (64, 3, 32, 32)
     assert x.dtype == torch.float32
     assert tuple(y.shape) == (64,)
+    assert y.dtype == torch.int64
     assert torch.isfinite(x).all()
     # per-channel normalized -> spread around 0, not all zero
     assert x.std().item() > 0
